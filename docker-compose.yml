@@ -1,0 +1,28 @@
+version: '2'
+
+services:
+  web:
+    command: npm run dev:debug
+    build: .
+    volumes:
+      - ./:/usr/src/app
+    ports:
+      - "3221:3000"
+      - "9229:9229"
+    links:
+      - mongo
+    environment:
+      - MONGO_DB_URI=mongodb://mongo:27017/pontonesia
+
+  mongo:
+    image: mongo
+    ports:
+      - "27017:27017"
+    volumes_from:
+      - mongodata
+
+  mongodata:
+    platform: linux/amd64
+    image: tianon/true
+    volumes:
+      - /data/db
