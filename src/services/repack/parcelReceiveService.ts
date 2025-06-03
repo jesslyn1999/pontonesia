@@ -1,12 +1,12 @@
-import { fileUploadService } from './../common/fileUploadService';
-import { Inventory } from '../../models/Inventory';
-import { ocrService } from '../common/ocrService';
 import {
+    FileUploadService,
     convertToImageData,
     deleteUploadedFiles,
-} from '../common/fileUploadService-depr';
-import type { ImageData, OCRResult } from '../../models/Inventory';
+} from 'src/services/internal/fileUploadService';
+import { ocrService } from '../internal/ocrService';
 import { Model } from 'mongoose';
+import { injectable } from 'inversify';
+import { IParcelRepack, IParcelRepackDraft } from 'src/models/repack/parcel';
 
 export interface CreateParcelData {
     trackingBarcode: Express.Multer.File;
@@ -36,56 +36,63 @@ export interface InventorySearchParams {
     limit?: number;
 }
 
-class ParcelReceiveService {
-    constructor(private readonly parcelRepackModel: Model<ParcelRepack>, 
-        private readonly fileUploadService: FileUploadService 
-    ) {}
-
-
-    async receiveParcel(data: CreateParcelData): Promise<any> {
+@injectable()
+export class ParcelReceiveService {
+    constructor(
+        private readonly parcelRepackModel: Model<IParcelRepack>,
+        private readonly fileUploadService: FileUploadService
+    ) {
+        this.parcelRepackModel = parcelRepackModel;
+        this.fileUploadService = fileUploadService;
+    }
+    async create(data: CreateParcelData): Promise<any> {
         try {
             const { trackingBarcode } = data;
-            
-            // Convert uploaded files to ImageData format
-            const serialNumberImageData: ImageData = convertToImageData(
-                data.serialNumberImage
-            );
-            const itemImagesData: ImageData[] = data.itemImages.map((file) =>
-                convertToImageData(file)
+
+            const barcodeUploadResult = await this.fileUploadService.uploadFile(
+                trackingBarcode,
+                {
+                    providerName: 'local',
+                }
             );
 
-            // Create inventory item
-            const inventoryItem = new Inventory({
-                serialNumberImage: serialNumberImageData,
-                itemImages: itemImagesData,
-                description: data.description || '',
-                category: data.category || '',
-                quantity: data.quantity || 1,
-                location: data.location || '',
+            const trackingBarcodeUrl = barcodeUploadResult.url;
+
+            const parcelRepack = new this.parcelRepackModel({
+                trackingBarcodeUrl: trackingBarcodeUrl,
                 createdBy: data.createdBy,
-                status: 'pending',
+                updatedBy: data.updatedBy,
             });
 
-            // Save to database
-            const savedItem = await inventoryItem.save();
+            await parcelRepack.save();
 
-            // Process OCR in background (don't wait for it)
-            this.processOCRAsync(savedItem.id, serialNumberImageData.path);
+            const { parcelImages } = data;
 
-            return savedItem.toJSON();
+            const fileUploadResults = await this.fileUploadService.uploadFiles(
+                parcelImages,
+                {
+                    providerName: 'local',
+                }
+            );
+            parcelRepack.parcelImageUrls = fileUploadResults.map(
+                (result) => result.url
+            );
+
+            return parcelRepack.toJSON();
         } catch (error) {
             // Clean up uploaded files if database save fails
-            const filesToDelete = [
-                data.serialNumberImage.path,
-                ...data.itemImages.map((f) => f.path),
-            ];
-            deleteUploadedFiles(filesToDelete);
+            // const filesToDelete = [
+            //     data.serialNumberImage.path,
+            //     ...data.itemImages.map((f) => f.path),
+            // ];
+            // deleteUploadedFiles(filesToDelete);
             throw new Error(
                 `Failed to create inventory item: ${error.message}`
             );
         }
     }
 
+    /*
     // READ - Get inventory items
     async getInventoryItems(
         params: InventorySearchParams = {}
@@ -329,8 +336,5 @@ class ParcelReceiveService {
             );
         }
     }
+        */
 }
-
-// Export singleton instance
-export const receiveService = new receiveService();
-export { receiveService };

@@ -5,10 +5,10 @@ if (process.env.NODE_ENV === 'production') {
 
 import '../configs/env';
 import Server from './server';
-import routes from './routes';
+import Router from './router';
 
 const port = parseInt(process.env.PORT ?? '3000');
-const app = new Server().router(routes);
+const app = new Server().router(Router);
 app.listen(port);
 
 // Handle uncaught exceptions

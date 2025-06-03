@@ -1,4 +1,4 @@
-import { fileUploadService } from '../services/common/fileUploadService';
+import { fileUploadService } from '../services/internal/fileUploadService';
 
 // Example: How to use the FileUploadService class
 

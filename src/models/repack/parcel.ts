@@ -1,4 +1,6 @@
-import { Schema, model } from 'ottoman';
+import { IParcelRepack } from 'src/models/repack/parcel';
+import { Schema, model } from 'mongoose';
+import { generateUUID } from 'src/libs/uuid';
 
 // Interface for image data
 interface ImageData {
@@ -18,8 +20,34 @@ interface OCRResult {
     ocrProvider: string;
 }
 
-const parcelRepackSchema = new Schema(
+// Interface for ParcelRepack document
+interface IParcelRepack {
+    _id?: string;
+    trackingNumber: string;
+    trackingBarcodeUrl: string | null;
+    parcelImageUrls: string[];
+    ocrResult: OCRResult | null;
+    status: 'pending' | 'success' | 'failed' | 'returned';
+    description: string;
+    category: string;
+    quantity: number;
+    location: string;
+    createdBy: string;
+    updatedBy: string;
+    createdAt: Date;
+    updatedAt: Date;
+    history: any[];
+}
+
+interface IParcelRepackDraft extends Partial<IParcelRepack> {}
+
+const parcelRepackSchema = new Schema<IParcelRepack>(
     {
+        _id: {
+            type: String,
+            required: true,
+            index: true,
+        },
         trackingNumber: {
             type: String,
             index: true,
@@ -124,8 +152,30 @@ parcelRepackSchema.methods.markAsFailed = function (error: string) {
     return this.save();
 };
 
-const scope = process.env.DB_SCOPE || '_default';
-const Inventory = model('Inventory', parcelRepackSchema, { scopeName: scope });
+parcelRepackSchema.pre('save', function (next) {
+    let tmp_log = null;
+    if (this.isNew && !this._id) {
+        this._id = generateUUID();
+        this.status = 'pending';
+        this.createdAt = new Date();
+        tmp_log = {
+            action: 'create',
+            createdAt: new Date(),
+            object: this,
+        };
+    } else {
+        tmp_log = {
+            action: 'update',
+            updatedAt: new Date(),
+            object: this,
+        };
+    }
+    this.history.push(tmp_log);
+    this.updatedAt = new Date();
+    next();
+});
 
-export { Inventory, parcelRepackSchema };
-export type { ImageData, OCRResult };
+const ParcelRepackModel = model('ParcelRepack', parcelRepackSchema);
+
+export { ParcelRepackModel, parcelRepackSchema };
+export type { ImageData, OCRResult, IParcelRepack, IParcelRepackDraft };

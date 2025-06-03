@@ -56,9 +56,12 @@ export default class App {
         // Static files
         const root = path.normalize(__dirname);
         app.use(express.static(path.join(root, 'public')));
-        
+
         // Serve uploaded images
-        app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+        app.use(
+            '/uploads',
+            express.static(path.join(process.cwd(), 'uploads'))
+        );
 
         // Others
         const apiSpec = path.join(__dirname, 'api.yml');

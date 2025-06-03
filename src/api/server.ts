@@ -7,16 +7,21 @@ import logger from 'src/libs/logger';
 
 import { SERVER_ENV } from 'src/configs/env';
 import notFoundHandler from 'src/middlewares/notFound.handler';
+import { Container } from 'inversify';
 
 export default class AppServer {
     public app: express.Application;
-    private routes: (app: Application) => void;
+    public container: Container;
+    private routes: (app: Application, container: Container) => void;
 
     constructor() {
         this.app = new App().app;
+        this.container = new Container(); // dependency injection
     }
 
-    router(routes: (app: Application) => void): AppServer {
+    router(
+        routes: (app: Application, container: Container) => void
+    ): AppServer {
         // Root route
         this.app.get('/', (_req, res) => {
             res.json({
@@ -24,7 +29,7 @@ export default class AppServer {
                 version: process.env.npm_package_version || '1.0.0',
             });
         });
-        routes(this.app);
+        routes(this.app, this.container);
         this.app.use(notFoundHandler);
         this.app.use(errorHandler);
         return this;
