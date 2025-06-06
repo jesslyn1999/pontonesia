@@ -1,7 +1,6 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { ImageData } from '../../models/repack/sourcePackage';
 import {
     FileUploadProvider,
     UploadOptions,
@@ -13,6 +12,7 @@ import {
     GCSStorageProvider,
     CloudinaryProvider,
 } from 'src/libs/storage';
+import { injectable } from 'inversify';
 
 // Configuration interface for FileUploadService
 export interface FileUploadServiceConfig {
@@ -26,7 +26,20 @@ export interface FileUploadServiceConfig {
     };
 }
 
-// Main FileUploadService class with dependency injection support
+export interface IFileUploadService {
+    uploadFile(
+        file: Express.Multer.File,
+        options?: UploadOptions & { providerName?: string }
+    ): Promise<UploadResult>;
+    uploadFiles(
+        files: Express.Multer.File[],
+        options?: UploadOptions & { providerName?: string }
+    ): Promise<UploadResult[]>;
+    deleteFile(fileUrl: string, providerName?: string): Promise<void>;
+    deleteFiles(fileUrls: string[], providerName?: string): Promise<void>;
+}
+
+@injectable()
 class FileUploadService {
     private providers: Map<string, FileUploadProvider> = new Map();
     private defaultProvider: string;
@@ -60,7 +73,7 @@ class FileUploadService {
     ): void {
         const tempDir =
             config?.tempDirectory || path.join(process.cwd(), 'temp');
-        const maxFileSize = config?.maxFileSize || 10 * 1024 * 1024; // 10MB
+        const maxFileSize = config?.maxFileSize || 5 * 1024 * 1024; // 10MB
         const maxFiles = config?.maxFiles || 11; // 1 serial + 10 item images
         const allowedMimeTypes = config?.allowedMimeTypes || [
             'image/jpeg',
@@ -233,7 +246,7 @@ class FileUploadService {
     // Get file URL
     getFileUrl(
         filename: string,
-        type: 'serial' | 'item' = 'item',
+        options?: UploadOptions,
         providerName?: string
     ): string {
         const provider = this.providers.get(
@@ -245,7 +258,7 @@ class FileUploadService {
             );
         }
 
-        return provider.getFileUrl(filename, type);
+        return provider.getFileUrl(filename, options);
     }
 
     // Get current default provider
@@ -377,17 +390,6 @@ export {
 // Legacy exports for backward compatibility
 export const uploadInventoryImages =
     fileUploadService.getUploadMiddleware().inventoryImages;
-
-export const convertToImageData = (file: Express.Multer.File): ImageData => {
-    return {
-        filename: file.filename,
-        originalName: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        path: file.path,
-        uploadedAt: new Date(),
-    };
-};
 
 export const deleteUploadedFiles = (files: string[]): void => {
     files.forEach((filePath) => {

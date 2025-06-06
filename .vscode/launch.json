@@ -1,6 +1,35 @@
 {
     "version": "0.2.0",
     "configurations": [
+
+        {
+            "name": "Launch Local (npm run dev)",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run", "dev"],
+            "console": "integratedTerminal",
+            "runtimeVersion": "18.20.5",
+            // "preLaunchTask": "npm: compile",
+            "restart": true,
+            "skipFiles": [
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/**"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
+            "sourceMaps": true,
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "killBehavior": "forceful", 
+            "justMyCode": false
+        },
         {
             "name": "Attach to NPM Run Dev:Debug",
             "request": "attach",
@@ -33,35 +62,6 @@
                 "!**/node_modules/**"
             ],
             "sourceMaps": true
-        },
-
-        {
-            "name": "Launch Local (npm run dev)",
-            "type": "node",
-            "request": "launch",
-            "cwd": "${workspaceFolder}",
-            "runtimeExecutable": "npm",
-            "runtimeArgs": ["run", "dev"],
-            "restart": true,
-            "console": "integratedTerminal",
-            "runtimeVersion": "18.20.5",
-            "preLaunchTask": "npm: compile",
-            "skipFiles": [
-                "<node_internals>/**",
-                "${workspaceFolder}/node_modules/**"
-            ],
-            "outFiles": [
-                "${workspaceFolder}/dist/**/*.js"
-            ],
-            "resolveSourceMapLocations": [
-                "${workspaceFolder}/**",
-                "!**/node_modules/**"
-            ],
-            "sourceMaps": true,
-            "env": {
-                "NODE_ENV": "development"
-            },
-            "sudo": true
         },
         {
             "name": "Attach to Process",

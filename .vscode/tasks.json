@@ -22,6 +22,6 @@
 			"problemMatcher": [],
 			"label": "npm: compile",
 			"detail": "ts-node build.ts && tsc"
-		}
+		},
 	]
 }

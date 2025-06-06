@@ -8,6 +8,7 @@ import logger from 'src/libs/logger';
 import { SERVER_ENV } from 'src/configs/env';
 import notFoundHandler from 'src/middlewares/notFound.handler';
 import { Container } from 'inversify';
+import ioc from './ioc/ioc.config';
 
 export default class AppServer {
     public app: express.Application;
@@ -17,6 +18,7 @@ export default class AppServer {
     constructor() {
         this.app = new App().app;
         this.container = new Container(); // dependency injection
+        ioc(this.container);
     }
 
     router(

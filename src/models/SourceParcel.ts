@@ -1,5 +1,4 @@
-import { IParcelRepack } from 'src/models/repack/parcel';
-import { Schema, model } from 'mongoose';
+import { Schema, model, Document } from 'mongoose';
 import { generateUUID } from 'src/libs/uuid';
 
 // Interface for image data
@@ -20,38 +19,36 @@ interface OCRResult {
     ocrProvider: string;
 }
 
-// Interface for ParcelRepack document
-interface IParcelRepack {
-    _id?: string;
+// Interface for SourceParcel document
+interface ISourceParcel extends Document {
+    _id: string;
     trackingNumber: string;
-    trackingBarcodeUrl: string | null;
+    trackingBarcodeUrl: string;
     parcelImageUrls: string[];
-    ocrResult: OCRResult | null;
-    status: 'pending' | 'success' | 'failed' | 'returned';
+    ocrResult: OCRResult;
+    // status: 'pending' | 'success' | 'failed' | 'returned'; // these types of statuses for process
+    status: 'pending' | 'processed' | 'returned';
+    channel: 'taobao' | 'alibaba' | 'xianyu' | 'xianzhu' | 'others';
     description: string;
     category: string;
     quantity: number;
-    location: string;
-    createdBy: string;
+    sourcedBy: string; // string of User
+    createdBy: string; // string of RepackUsers
     updatedBy: string;
     createdAt: Date;
     updatedAt: Date;
     history: any[];
 }
 
-interface IParcelRepackDraft extends Partial<IParcelRepack> {}
-
-const parcelRepackSchema = new Schema<IParcelRepack>(
+const SourceParcelSchema = new Schema<ISourceParcel>(
     {
         _id: {
             type: String,
-            required: true,
-            index: true,
         },
         trackingNumber: {
             type: String,
             index: true,
-            default: '',
+            default: null,
         },
         trackingBarcodeUrl: {
             type: String,
@@ -67,24 +64,28 @@ const parcelRepackSchema = new Schema<IParcelRepack>(
         },
         status: {
             type: String,
-            enum: ['pending', 'success', 'failed', 'returned'],
+            enum: ['pending', 'processed', 'returned'],
             default: 'pending',
+        },
+        channel: {
+            type: String,
+            default: null,
         },
         description: {
             type: String,
-            default: '',
+            default: null,
         },
         category: {
             type: String,
-            default: '',
+            default: null,
         },
         quantity: {
             type: Number,
-            default: 1,
+            default: null,
         },
-        location: {
+        sourcedBy: {
             type: String,
-            default: '',
+            ref: 'User',
         },
         createdBy: {
             type: String,
@@ -113,18 +114,19 @@ const parcelRepackSchema = new Schema<IParcelRepack>(
 );
 
 // Instance methods
-parcelRepackSchema.methods.toJSON = function () {
+SourceParcelSchema.methods.toJSON = function () {
     return {
-        id: this.id,
-        serialNumber: this.serialNumber,
-        serialNumberImage: this.serialNumberImage,
-        itemImages: this.itemImages,
+        id: this._id,
+        trackingNumber: this.trackingNumber,
+        trackingBarcodeUrl: this.trackingBarcodeUrl,
+        parcelImageUrls: this.parcelImageUrls,
         ocrResult: this.ocrResult,
         status: this.status,
+        channel: this.channel,
         description: this.description,
         category: this.category,
         quantity: this.quantity,
-        location: this.location,
+        sourcedBy: this.sourcedBy,
         createdBy: this.createdBy,
         updatedBy: this.updatedBy,
         createdAt: this.createdAt,
@@ -133,14 +135,14 @@ parcelRepackSchema.methods.toJSON = function () {
     };
 };
 
-parcelRepackSchema.methods.updateOCRResult = function (ocrData: OCRResult) {
+SourceParcelSchema.methods.updateOCRResult = function (ocrData: OCRResult) {
     this.ocrResult = ocrData;
-    this.serialNumber = ocrData.extractedText;
+    this.trackingNumber = ocrData.extractedText;
     this.status = 'processed';
     return this.save();
 };
 
-parcelRepackSchema.methods.markAsFailed = function (error: string) {
+SourceParcelSchema.methods.markAsFailed = function (error: string) {
     this.status = 'failed';
     this.ocrResult = {
         extractedText: '',
@@ -152,22 +154,24 @@ parcelRepackSchema.methods.markAsFailed = function (error: string) {
     return this.save();
 };
 
-parcelRepackSchema.pre('save', function (next) {
+SourceParcelSchema.pre('save', function (next) {
     let tmp_log = null;
     if (this.isNew && !this._id) {
         this._id = generateUUID();
         this.status = 'pending';
         this.createdAt = new Date();
+        const { history, ...obj } = this.toJSON();
         tmp_log = {
             action: 'create',
             createdAt: new Date(),
-            object: this,
+            object: obj,
         };
     } else {
+        const { history, ...obj } = this.toJSON();
         tmp_log = {
             action: 'update',
             updatedAt: new Date(),
-            object: this,
+            object: obj,
         };
     }
     this.history.push(tmp_log);
@@ -175,7 +179,10 @@ parcelRepackSchema.pre('save', function (next) {
     next();
 });
 
-const ParcelRepackModel = model('ParcelRepack', parcelRepackSchema);
+const SourceParcelModel = model<ISourceParcel>(
+    'SourceParcel',
+    SourceParcelSchema
+);
 
-export { ParcelRepackModel, parcelRepackSchema };
-export type { ImageData, OCRResult, IParcelRepack, IParcelRepackDraft };
+export { SourceParcelModel, SourceParcelSchema };
+export type { ImageData, OCRResult, ISourceParcel };

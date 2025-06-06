@@ -1,54 +1,48 @@
-import {
-    FileUploadService,
-    convertToImageData,
-    deleteUploadedFiles,
-} from 'src/services/internal/fileUploadService';
-import { ocrService } from '../internal/ocrService';
-import { Model } from 'mongoose';
-import { injectable } from 'inversify';
-import { IParcelRepack, IParcelRepackDraft } from 'src/models/repack/parcel';
+import logger from 'src/libs/logger';
+import { IFileUploadService } from 'src/services/internal/fileUploadService';
+import { injectable, inject } from 'inversify';
+import { ISourceParcelRepository } from 'src/repositories/SourceParcelRepository';
+import * as TYPES from 'src/api/ioc/ioc.type';
 
-export interface CreateParcelData {
+interface CreateParcelData {
     trackingBarcode: Express.Multer.File;
     parcelImages: Express.Multer.File[];
-    serialNumberText?: string;
+    trackingNumber?: string;
     description?: string; // might include trackingBarcodeText
     category?: string;
-    location?: string;
     createdBy?: string;
     updatedBy?: string;
 }
 
-export interface UpdateInventoryData {
-    description?: string;
-    category?: string;
-    quantity?: number;
-    location?: string;
-    updatedBy?: string;
-}
-
-export interface InventorySearchParams {
-    serialNumber?: string;
-    category?: string;
-    status?: string;
-    createdBy?: string;
-    page?: number;
-    limit?: number;
+export interface IParcelReceiveService {
+    create(data: CreateParcelData): Promise<any>;
 }
 
 @injectable()
 export class ParcelReceiveService {
     constructor(
-        private readonly parcelRepackModel: Model<IParcelRepack>,
-        private readonly fileUploadService: FileUploadService
+        @inject(TYPES.SourceParcelRepository)
+        private readonly sourceParcelRepository: ISourceParcelRepository,
+        @inject(TYPES.S3FileUploadService)
+        private readonly fileUploadService: IFileUploadService
     ) {
-        this.parcelRepackModel = parcelRepackModel;
+        this.sourceParcelRepository = sourceParcelRepository;
         this.fileUploadService = fileUploadService;
     }
     async create(data: CreateParcelData): Promise<any> {
         try {
+            console.log('=== PARCEL RECEIVE SERVICE DEBUG ===');
+            console.log('1. Starting create method with data:', {
+                hasTrackingBarcode: !!data.trackingBarcode,
+                parcelImagesCount: data.parcelImages?.length || 0,
+                trackingNumber: data.trackingNumber,
+                description: data.description,
+                category: data.category,
+            });
+
             const { trackingBarcode } = data;
 
+            console.log('2. Uploading tracking barcode...');
             const barcodeUploadResult = await this.fileUploadService.uploadFile(
                 trackingBarcode,
                 {
@@ -58,13 +52,16 @@ export class ParcelReceiveService {
 
             const trackingBarcodeUrl = barcodeUploadResult.url;
 
-            const parcelRepack = new this.parcelRepackModel({
+            const sourceParcel = await this.sourceParcelRepository.create({
                 trackingBarcodeUrl: trackingBarcodeUrl,
                 createdBy: data.createdBy,
                 updatedBy: data.updatedBy,
             });
 
-            await parcelRepack.save();
+            // await this.sourceParcelRepository.insert(sourceParcel);
+            const potInser = await this.sourceParcelRepository.insert(
+                sourceParcel
+            );
 
             const { parcelImages } = data;
 
@@ -74,11 +71,16 @@ export class ParcelReceiveService {
                     providerName: 'local',
                 }
             );
-            parcelRepack.parcelImageUrls = fileUploadResults.map(
+            sourceParcel.parcelImageUrls = fileUploadResults.map(
                 (result) => result.url
             );
 
-            return parcelRepack.toJSON();
+            await this.sourceParcelRepository.update(
+                sourceParcel.id,
+                sourceParcel
+            );
+
+            return sourceParcel.toJSON();
         } catch (error) {
             // Clean up uploaded files if database save fails
             // const filesToDelete = [
@@ -86,8 +88,9 @@ export class ParcelReceiveService {
             //     ...data.itemImages.map((f) => f.path),
             // ];
             // deleteUploadedFiles(filesToDelete);
+            logger.error(error);
             throw new Error(
-                `Failed to create inventory item: ${error.message}`
+                `Failed to create source parcel item: ${error.message}`
             );
         }
     }

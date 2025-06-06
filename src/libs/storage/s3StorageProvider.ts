@@ -5,14 +5,17 @@ import {
     UploadResult,
 } from './storage.types';
 import AWS from 'aws-sdk';
+import fs from 'fs';
 
 export class S3StorageProvider implements FileUploadProvider {
     name = 'aws-s3';
+
+    private defaultUploadDir: string;
     private bucketName: string;
     private region: string;
     private accessKeyId?: string;
     private secretAccessKey?: string;
-    private s3Client: any;
+    private s3Client: AWS.S3;
 
     constructor(config: {
         bucketName: string;
@@ -25,6 +28,8 @@ export class S3StorageProvider implements FileUploadProvider {
         this.accessKeyId = config.accessKeyId || process.env.AWS_ACCESS_KEY_ID;
         this.secretAccessKey =
             config.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY;
+
+        this.defaultUploadDir = 'unknown';
 
         this.initializeS3Client();
     }
@@ -58,16 +63,13 @@ export class S3StorageProvider implements FileUploadProvider {
             throw new Error('S3 provider is not properly configured');
         }
 
-        const type = options?.type || 'item';
-        const folder =
-            options?.folder ||
-            `uploads/${type === 'serial' ? 'serial-numbers' : 'item-images'}`;
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const folder = options?.folder || this.defaultUploadDir;
         const extension = path.extname(file.originalname);
-        const filename = `${type}-${uniqueSuffix}${extension}`;
+        const basename = path.basename(file.originalname, extension);
+        const filename = `${basename}${extension}`;
         const key = `${folder}/${filename}`;
 
-        const uploadParams = {
+        const uploadParams: AWS.S3.Types.PutObjectRequest = {
             Bucket: this.bucketName,
             Key: key,
             Body: fs.createReadStream(file.path),
@@ -114,8 +116,9 @@ export class S3StorageProvider implements FileUploadProvider {
         }
     }
 
-    getFileUrl(filename: string, type = 'item'): string {
-        const folder = type === 'serial' ? 'serial-numbers' : 'item-images';
-        return `https://${this.bucketName}.s3.amazonaws.com/uploads/${folder}/${filename}`;
+    getFileUrl(filename: string, options?: UploadOptions): string {
+        return `https://${this.bucketName}.s3.amazonaws.com/${
+            options?.folder || this.defaultUploadDir
+        }/${filename}`;
     }
 }

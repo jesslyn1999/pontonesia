@@ -4,9 +4,12 @@ import {
     UploadOptions,
     UploadResult,
 } from './storage.types';
+import fs from 'fs';
 
 export class GCSStorageProvider implements FileUploadProvider {
     name = 'google-cloud-storage';
+
+    private defaultUploadDir: string;
     private bucketName: string;
     private projectId?: string;
     private keyFilename?: string;
@@ -23,6 +26,8 @@ export class GCSStorageProvider implements FileUploadProvider {
             config.projectId || process.env.GOOGLE_CLOUD_PROJECT_ID;
         this.keyFilename =
             config.keyFilename || process.env.GOOGLE_CLOUD_KEY_FILE;
+
+        this.defaultUploadDir = 'unknown';
 
         this.initializeGCS();
     }
@@ -55,12 +60,9 @@ export class GCSStorageProvider implements FileUploadProvider {
         }
 
         const type = options?.type || 'item';
-        const folder =
-            options?.folder ||
-            `uploads/${type === 'serial' ? 'serial-numbers' : 'item-images'}`;
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const folder = options?.folder || this.defaultUploadDir;
         const extension = path.extname(file.originalname);
-        const filename = `${type}-${uniqueSuffix}${extension}`;
+        const filename = `${file.originalname}${extension}`;
         const destination = `${folder}/${filename}`;
 
         try {
@@ -73,7 +75,7 @@ export class GCSStorageProvider implements FileUploadProvider {
             });
 
             return new Promise((resolve, reject) => {
-                stream.on('error', (error) => {
+                stream.on('error', (error: any) => {
                     reject(new Error(`GCS upload failed: ${error.message}`));
                 });
 
@@ -83,7 +85,7 @@ export class GCSStorageProvider implements FileUploadProvider {
                         originalName: file.originalname,
                         mimetype: file.mimetype,
                         size: file.size,
-                        url: this.getFileUrl(filename, type),
+                        url: this.getFileUrl(filename, options),
                         uploadedAt: new Date(),
                         provider: this.name,
                         metadata: options?.metadata,
@@ -111,8 +113,9 @@ export class GCSStorageProvider implements FileUploadProvider {
         }
     }
 
-    getFileUrl(filename: string, type: string = 'item'): string {
-        const folder = type === 'serial' ? 'serial-numbers' : 'item-images';
-        return `https://storage.googleapis.com/${this.bucketName}/uploads/${folder}/${filename}`;
+    getFileUrl(filename: string, options?: UploadOptions): string {
+        return `https://storage.googleapis.com/${this.bucketName}/${
+            options?.folder || this.defaultUploadDir
+        }/${filename}`;
     }
 }

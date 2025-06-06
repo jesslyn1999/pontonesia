@@ -26,6 +26,6 @@ export interface FileUploadProvider {
         options?: UploadOptions
     ): Promise<UploadResult>;
     deleteFile(fileUrl: string): Promise<void>;
-    getFileUrl(filename: string, type?: string): string;
+    getFileUrl(filename: string, options?: UploadOptions): string;
     isConfigured(): boolean;
 }

@@ -29,6 +29,7 @@ export const SERVER_ENV = {
         validateEnv('OPENAPI_ENABLE_RESPONSE_VALIDATION', 'false')
     ),
     CORS_ORIGIN: validateEnv('CORS_ORIGIN', '*'),
+    BASE_URL: validateEnv('CORS_ORIGIN', 'http://localhost:3000'),
 };
 
 // Authentication configuration
@@ -61,6 +62,13 @@ export const RATE_LIMIT = {
         10
     ), // 15 minutes
     MAX_REQUESTS: parseInt(validateEnv('RATE_LIMIT_MAX_REQUESTS', '100'), 10), // 100 requests per window
+};
+
+export const AWS_ENV = {
+    S3_BUCKET_NAME: process.env.AWS_S3_BUCKET_NAME || 'default-bucket',
+    REGION: process.env.AWS_REGION || 'us-east-1',
+    ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+    SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
 };
 
 // All environment variables combined

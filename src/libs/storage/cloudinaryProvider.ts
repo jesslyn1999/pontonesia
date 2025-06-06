@@ -100,11 +100,12 @@ export class CloudinaryProvider implements FileUploadProvider {
         }
     }
 
-    getFileUrl(filename: string, type: string = 'item'): string {
+    // TODO: fix later
+    getFileUrl(filename: string, options?: UploadOptions): string {
         return `https://res.cloudinary.com/${
             this.cloudName
         }/image/upload/inventory/${
-            type === 'serial' ? 'serial-numbers' : 'item-images'
+            options?.folder === 'serial' ? 'serial-numbers' : 'item-images'
         }/${filename}`;
     }
 }

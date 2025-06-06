@@ -1,31 +1,28 @@
+import logger from 'src/libs/logger';
 import path from 'path';
 import {
     FileUploadProvider,
     UploadOptions,
     UploadResult,
 } from './storage.types';
+import fs from 'fs';
+import { SERVER_ENV } from 'src/configs/env';
 
 export class LocalStorageProvider implements FileUploadProvider {
     name = 'local';
-    private uploadDir: string;
-    private serialNumberDir: string;
-    private itemImagesDir: string;
+    private defaultUploadDir: string;
 
     constructor() {
-        this.uploadDir = path.join(process.cwd(), 'uploads');
-        this.serialNumberDir = path.join(this.uploadDir, 'serial-numbers');
-        this.itemImagesDir = path.join(this.uploadDir, 'item-images');
+        this.defaultUploadDir = path.join(process.cwd(), 'uploads/unknown');
         this.ensureDirectories();
     }
 
     private ensureDirectories(): void {
-        [this.uploadDir, this.serialNumberDir, this.itemImagesDir].forEach(
-            (dir) => {
-                if (!fs.existsSync(dir)) {
-                    fs.mkdirSync(dir, { recursive: true });
-                }
+        [this.defaultUploadDir].forEach((dir) => {
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
             }
-        );
+        });
     }
 
     isConfigured(): boolean {
@@ -36,13 +33,10 @@ export class LocalStorageProvider implements FileUploadProvider {
         file: Express.Multer.File,
         options?: UploadOptions
     ): Promise<UploadResult> {
-        const type = options?.type || 'item';
-        const targetDir =
-            type === 'serial' ? this.serialNumberDir : this.itemImagesDir;
-
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const targetDir = options?.folder || this.defaultUploadDir;
         const extension = path.extname(file.originalname);
-        const filename = `${type}-${uniqueSuffix}${extension}`;
+        const basename = path.basename(file.originalname, extension);
+        const filename = `${basename}${extension}`;
         const filePath = path.join(targetDir, filename);
 
         try {
@@ -57,36 +51,35 @@ export class LocalStorageProvider implements FileUploadProvider {
                 originalName: file.originalname,
                 mimetype: file.mimetype,
                 size: file.size,
-                url: this.getFileUrl(filename, type),
+                url: this.getFileUrl(filename, options),
                 path: filePath,
                 uploadedAt: new Date(),
                 provider: this.name,
                 metadata: options?.metadata,
             };
         } catch (error) {
+            logger.error(error);
             throw new Error(`Local storage upload failed: ${error.message}`);
         }
     }
 
     async deleteFile(fileUrl: string): Promise<void> {
         try {
-            const filename = path.basename(fileUrl);
-            const serialPath = path.join(this.serialNumberDir, filename);
-            const itemPath = path.join(this.itemImagesDir, filename);
+            const baseUrl = SERVER_ENV.BASE_URL;
+            const localFilePath = fileUrl.replace(baseUrl, '');
 
-            if (fs.existsSync(serialPath)) {
-                fs.unlinkSync(serialPath);
-            } else if (fs.existsSync(itemPath)) {
-                fs.unlinkSync(itemPath);
+            if (fs.existsSync(localFilePath)) {
+                fs.unlinkSync(localFilePath);
             }
         } catch (error) {
             throw new Error(`Local storage delete failed: ${error.message}`);
         }
     }
 
-    getFileUrl(filename: string, type = 'item'): string {
-        const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
-        const folder = type === 'serial' ? 'serial-numbers' : 'item-images';
-        return `${baseUrl}/uploads/${folder}/${filename}`;
+    getFileUrl(filename: string, options?: UploadOptions): string {
+        const baseUrl = SERVER_ENV.BASE_URL;
+        return `${baseUrl}/${
+            options?.folder || this.defaultUploadDir
+        }/${filename}`;
     }
 }
